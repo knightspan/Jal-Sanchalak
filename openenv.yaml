@@ -1,0 +1,160 @@
+name: dam-flood-control
+version: "1.0.0"
+description: >
+  A real-world OpenEnv environment simulating a hydroelectric dam system.
+  An AI agent controls spillway gates and turbine generators to prevent
+  downstream flooding, maintain safe reservoir levels, and maximize
+  hydroelectric power generation. Simulates realistic hydrological dynamics
+  including seasonal inflow variation, extreme weather events, and
+  multi-objective optimization challenges.
+
+author: "Dam Flood Control Team"
+tags:
+  - real-world
+  - flood-control
+  - hydrology
+  - hydroelectric
+  - multi-objective
+  - resource-management
+
+interface:
+  protocol: http
+  endpoints:
+    reset:
+      method: POST
+      path: /reset
+      description: Initialize a new episode. Accepts optional task_name and seed.
+    step:
+      method: POST
+      path: /step
+      description: Execute one day of dam operation with gate/turbine settings.
+    state:
+      method: GET
+      path: /state
+      description: Return current episode metadata.
+    health:
+      method: GET
+      path: /health
+      description: Health check endpoint.
+
+action_space:
+  type: composite
+  description: Control of 5 spillway gates and 3 turbine generators
+  fields:
+    gate_positions:
+      type: array
+      items: float
+      length: 5
+      range: [0.0, 1.0]
+      description: Fraction open for each spillway gate
+    turbine_active:
+      type: array
+      items: bool
+      length: 3
+      description: Whether each turbine is running
+    turbine_flow_fraction:
+      type: array
+      items: float
+      length: 3
+      range: [0.0, 1.0]
+      description: Flow fraction for each turbine if active
+
+observation_space:
+  type: composite
+  description: Full sensor readings from dam system
+  fields:
+    reservoir_level_mcm:
+      type: float
+      description: Water volume in reservoir (Million Cubic Meters)
+    reservoir_fraction:
+      type: float
+      range: [0.0, 1.0]
+      description: Reservoir fullness fraction
+    reservoir_trend:
+      type: string
+      enum: [rising, falling, stable]
+    current_inflow_mcm:
+      type: float
+      description: Inflow this step (MCM/day)
+    forecast_inflow_3day:
+      type: array
+      items: float
+      length: 3
+      description: 3-day inflow forecast
+    season:
+      type: string
+      enum: [monsoon, pre_monsoon, post_monsoon, dry]
+    is_extreme_weather_event:
+      type: bool
+    gate_positions:
+      type: array
+      items: float
+      length: 5
+    turbine_status:
+      type: array
+      items: bool
+      length: 3
+    downstream_flow_mcm:
+      type: float
+    downstream_status:
+      type: string
+      enum: [safe, warning, danger, catastrophe]
+    flood_risk_level:
+      type: string
+      enum: [low, medium, high, critical]
+    downstream_flooded:
+      type: bool
+    drought_condition:
+      type: bool
+    power_output_mw:
+      type: float
+    alerts:
+      type: array
+      items: string
+
+reward:
+  range: [-1.0, 1.0]
+  description: >
+    Multi-objective reward signal:
+    +0.4 for power generation (normalized)
+    +0.3 for safe reservoir level (40-80%)
+    -0.5 penalty for downstream flooding
+    -0.3 penalty for drought condition
+    -0.2 penalty for uncontrolled spill
+  partial_progress: true
+
+tasks:
+  - name: level_management
+    difficulty: easy
+    max_steps: 15
+    success_threshold: 0.6
+    description: >
+      Keep reservoir between 40-80% capacity for 15 days during predictable
+      pre-monsoon season. Straightforward control task with clear feedback.
+
+  - name: flood_prevention
+    difficulty: medium
+    max_steps: 20
+    success_threshold: 0.5
+    description: >
+      Manage peak monsoon for 20 days. Heavy, variable inflow with one
+      extreme weather event. Must prevent downstream flooding while avoiding
+      dam overflow. Requires reactive control under uncertainty.
+
+  - name: full_optimization
+    difficulty: hard
+    max_steps: 30
+    success_threshold: 0.45
+    description: >
+      30-day multi-season simulation. Simultaneously maximize hydroelectric
+      generation, prevent flooding, avoid drought, minimize water waste.
+      Multiple extreme events possible. Requires planning using inflow forecasts.
+
+docker:
+  base_image: python:3.11-slim
+  port: 7860
+  health_check: GET /health
+
+deployment:
+  platform: huggingface-spaces
+  sdk: docker
