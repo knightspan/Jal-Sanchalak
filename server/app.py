@@ -3,20 +3,19 @@ FastAPI server for Dam Flood Control OpenEnv environment.
 Exposes: POST /reset, POST /step, GET /state, GET /tasks, GET /health
 """
 
+from server.tasks import TASK_CONFIGS
+from server.models import DamAction, StepResult, ResetResult, DamState
+from server.environment import DamFloodControlEnvironment
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from typing import Optional
 import os
 import sys
 
 sys.path.insert(0, "/app")
 
-from typing import Optional
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
-from server.environment import DamFloodControlEnvironment
-from server.models import DamAction, StepResult, ResetResult, DamState
-from server.tasks import TASK_CONFIGS
 
 # ─── App Setup ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +53,7 @@ async def health():
     """Health check — judges ping this."""
     return {"status": "ok", "environment": "dam-flood-control", "version": "1.0.0"}
 
+
 @app.post("/reset")
 async def reset(request: ResetRequest = None) -> dict:
     """
@@ -64,9 +64,11 @@ async def reset(request: ResetRequest = None) -> dict:
         request = ResetRequest()
     task = request.task_name or "level_management"
     if task not in TASK_CONFIGS:
-        raise HTTPException(status_code=400, detail=f"Unknown task: {task}. Valid: {list(TASK_CONFIGS.keys())}")
+        raise HTTPException(
+            status_code=400, detail=f"Unknown task: {task}. Valid: {list(TASK_CONFIGS.keys())}")
     result = env.reset(task_name=task, seed=request.seed)
     return result.model_dump()
+
 
 @app.post("/step")
 async def step(action: DamAction) -> dict:
@@ -74,10 +76,12 @@ async def step(action: DamAction) -> dict:
     result = env.step(action)
     return result.model_dump()
 
+
 @app.get("/state")
 async def state() -> dict:
     """Return current episode state metadata."""
     return env.state().model_dump()
+
 
 @app.get("/tasks")
 async def list_tasks() -> dict:
@@ -95,11 +99,13 @@ async def list_tasks() -> dict:
         ]
     }
 
+
 @app.get("/grade")
 async def grade_current_episode() -> dict:
     """Grade the current episode (call after done=True)."""
     result = env.grade_episode()
     return result
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -153,3 +159,13 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+def main():
+    import uvicorn
+    port = int(os.getenv("PORT", 7860))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    main()
